@@ -2,7 +2,7 @@
 #include <thread>
 
 #include "pool/policy/static_storage.hpp"
-#include "pool/policy/intrusive_linked_stack.hpp"
+#include "pool/policy/freelist_stack.hpp"
 #include "pool/policy/freelist_data_store.hpp"
 #include "pool/pool.hpp"
 
@@ -19,7 +19,7 @@ using freelist_t = static_storage_array_data<
 freelist_t data_storage{};
 using pool_t = pool<
 	freelist_data_store<
-		atomic_intrusive_stack<
+		atomic_freelist_stack<
 			static_storage<
 				freelist_t,
 				data_storage>>>,

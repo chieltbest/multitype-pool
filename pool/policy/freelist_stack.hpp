@@ -63,7 +63,7 @@ template <typename StoragePolicy, template <typename> class atomic_t = std::atom
           typename alloc_counter = uint32_t>
 // the counter type must be unsigned, as
 // overflow is only defined for unsigned types
-class atomic_intrusive_stack {
+class atomic_freelist_stack {
 public:
 	using data_t = decltype(StoragePolicy::data_t::data);
 	using ptr_t = typename StoragePolicy::ptr_t;
@@ -84,7 +84,7 @@ private:
 	atomic_t<autosize::int_sizeof<sizeof(head_t)>> head;
 
 public:
-	constexpr atomic_intrusive_stack()
+	constexpr atomic_freelist_stack()
 		: data{},
 		  head{head_t_int_union{
 			  .data = {
@@ -164,7 +164,7 @@ public:
 /// non-atomic stack, to be used when it is sure that there is
 /// only ever one thread accessing the pool object
 template<typename StoragePolicy>
-class intrusive_stack {
+class freelist_stack {
 public:
 	using data_t = decltype(StoragePolicy::data_t::data);
 	using ptr_t = typename StoragePolicy::ptr_t;
@@ -174,7 +174,7 @@ private:
 	ptr_t head;
 
 public:
-	constexpr intrusive_stack()
+	constexpr freelist_stack()
 		: data{},
 		  head{data.begin()} {
 	}
