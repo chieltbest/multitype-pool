@@ -10,24 +10,28 @@ class freelist_data_store {
 	FreelistPolicy freelist;
 
 public:
-	/// wrapper class for converting the raw data/freelist stack pointer into the requested data type
+	using default_data_t = typename FreelistPolicy::data_t;
+
+	/// wrapper class for converting the raw data/freelist
+	/// stack pointer into the requested data type
 	template<typename T>
 	class ptr_t : public FreelistPolicy::ptr_t {
 	public:
-		template<typename ...Args>
-		ptr_t(Args&&... args)
+		template<typename... Args>
+		constexpr ptr_t(Args &&... args)
 			: FreelistPolicy::ptr_t{args...} {
 		}
 
-		constexpr T& operator*() {
-			return static_cast<T&>(FreelistPolicy::ptr_t::operator*());
+		constexpr T &operator*() {
+			// TODO make a better error message for allocating from a wrong type
+			return static_cast<T &>(FreelistPolicy::ptr_t::operator*());
 		}
 
-		constexpr T* operator->() {
+		constexpr T *operator->() {
 			return FreelistPolicy::ptr_t::operator->();
 		};
 
-		constexpr ptr_t& operator++() {
+		constexpr ptr_t &operator++() {
 			return FreelistPolicy::ptr_t::operator++();
 		}
 
@@ -41,19 +45,18 @@ public:
 			return FreelistPolicy::ptr_t::operator-(sub);
 		}
 
-		constexpr bool operator==(const ptr_t& lhs) const {
+		constexpr bool operator==(const ptr_t &lhs) const {
 			return FreelistPolicy::ptr_t::operator==(lhs);
 		}
 
-		constexpr bool operator!=(const ptr_t& lhs) const {
+		constexpr bool operator!=(const ptr_t &lhs) const {
 			return FreelistPolicy::ptr_t::operator!=(lhs);
 		}
 
 		template<typename Stream>
-		friend constexpr Stream& operator<<(Stream& lhs, const ptr_t& rhs) {
-			return lhs << static_cast<const typename FreelistPolicy::ptr_t&>(rhs);
+		friend constexpr Stream &operator<<(Stream &lhs, const ptr_t &rhs) {
+			return lhs << static_cast<const typename FreelistPolicy::ptr_t &>(rhs);
 		}
-
 	};
 
 	constexpr freelist_data_store()
@@ -70,6 +73,10 @@ public:
 		freelist.push(ptr);
 	}
 
+	auto get_free() {
+		return freelist.get_free();
+	}
+
 };
 
-#endif //MULTITYPE_POOL_STATIC_DATA_HPP
+#endif // MULTITYPE_POOL_STATIC_DATA_HPP

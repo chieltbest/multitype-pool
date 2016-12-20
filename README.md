@@ -4,7 +4,7 @@ Pool implementation that is able to support multiple fixed types,
  and will be more efficient because of this information.
 
 This pool optionally uses a statically allocated data store,
- so that the custom pointer type can use an automagically-sized index for refering to the object, thus saving memory
+ so that the custom pointer type can use an automagically-sized index for referring to the object, thus saving memory
 
 ## examples
 

@@ -1,31 +1,66 @@
 #include <iostream>
+#include <thread>
 
-#include "pool/pool.hpp"
-#include "pool/policy/intrusive_linked_stack.hpp"
 #include "pool/policy/static_storage.hpp"
+#include "pool/policy/intrusive_linked_stack.hpp"
 #include "pool/policy/freelist_data_store.hpp"
+#include "pool/pool.hpp"
 
-void oomComm() {
-	std::cerr << "Out of memory!" << std::endl;
-};
+using namespace std::chrono;
+using namespace std::chrono_literals;
 
-using freelist_t = static_storage_array_data<freelist_stack_node<char>::node, 10>;
+constexpr int loops = 1'000'000, poolsize = 10;
+
+inline void oom_exit();
+
+using freelist_t = static_storage_array_data<
+	freelist_stack_node<int>::node,
+	poolsize>;
 freelist_t data_storage{};
-using pool_t = pool<freelist_data_store<intrusive_stack<static_storage<freelist_t, data_storage>>>, char, oomComm>;
+using pool_t = pool<
+	freelist_data_store<
+		atomic_intrusive_stack<
+			static_storage<
+				freelist_t,
+				data_storage>>>,
+	oom_exit>;
 pool_t pool_obj{};
 
+inline void oom_exit() {
+	std::cerr << "Out of memory!" << std::endl;
+	for (int i = 0; i < data_storage.max_elems; ++i) {
+		std::cout << data_storage[i] << std::endl;
+	}
+	std::exit(1);
+}
+
 int main() {
-//	auto ptr = pool_obj.allocate('a');
-//	std::cout << ptr << " " << +*ptr << std::endl;
-	constexpr int loops = 11;
-	pool_t::ptr_t<char> ptrs[loops]{};
-	for (int i = 0; i < loops; ++i) {
-		ptrs[i] = pool_obj.allocate(10+i);
-		std::cout << ptrs[i] << " " << +*ptrs[i] << std::endl;
-	}
-	for (int i = 0; i < loops; ++i) {
-		pool_obj.free(ptrs[i]);
-	}
+	decltype(pool_obj.get_free()) free;
+	do {
+		auto allocator_thread = []() {
+			for (int i = 0; i < loops; ++i) {
+				auto ptr = pool_obj.allocate();
+//				std::cout << ptr << " " << *ptr << std::endl;
+				pool_obj.free(ptr);
+			}
+		};
+		auto start_time = system_clock::now();
+
+		std::thread threads[4];
+		for (auto&& thread : threads) {
+			thread = std::thread{allocator_thread};
+		}
+		for (auto&& thread : threads) {
+			thread.join();
+		}
+
+		auto total_time = std::chrono::system_clock::now() - start_time;
+
+		free = pool_obj.get_free();
+		std::cout << free
+		          << " (took " << duration_cast<milliseconds>(total_time).count() << "ms)"
+		          << std::endl;
+	} while (free == poolsize);
 
 	return 0;
 }
