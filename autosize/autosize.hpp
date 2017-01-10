@@ -82,10 +82,15 @@ namespace autosize {
 			using r = uint_least64_t;
 		};
 
-
 		template<std::size_t size>
 		struct int_sizeof_impl {
+			static_assert(size <= sizeof(long long int),
+			              "Size must fit inside a single machine word");
 			using r = typename int_sizeof_impl<size + 1>::r;
+		};
+		template<>
+		struct int_sizeof_impl<0> {
+			using r = char[0]; // special zero-sized struct
 		};
 		template<>
 		struct int_sizeof_impl<1> {
@@ -104,10 +109,15 @@ namespace autosize {
 			using r = int64_t;
 		};
 
-
 		template<std::size_t size>
 		struct uint_sizeof_impl {
-			using r = typename uint_sizeof_impl<size + 1>::r;
+			static_assert(size <= sizeof(long long unsigned int),
+			              "Size must fit inside a single machine word");
+			using r = typename int_sizeof_impl<size + 1>::r;
+		};
+		template<>
+		struct uint_sizeof_impl<0> {
+			using r = char[0]; // special zero-sized struct
 		};
 		template<>
 		struct uint_sizeof_impl<1> {

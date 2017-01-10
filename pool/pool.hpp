@@ -10,6 +10,13 @@
 
 inline void null_func() {}
 
+/// used if the stored data type does not depend on the type of the pointer
+template<typename T>
+struct discard_ptr_t { // TODO make a separate header
+	template<typename ptr_t>
+	using node = T;
+};
+
 /// general pool interface, handles initialization and deconstructing of elements, and out of memory errors
 template<typename DataPolicy,
 	void (*OutOfMemoryPolicy)() = null_func,

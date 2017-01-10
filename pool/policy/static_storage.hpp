@@ -89,6 +89,7 @@ class static_storage {
 public:
 	using index_t = typename static_storage_t::index_t;
 	using data_t  = typename static_storage_t::data_t;
+	constexpr static auto max_elems = static_storage_t::max_elems;
 
 	class ptr_t : public static_storage_t::ptr_t {
 		using static_storage_t::ptr_t::idx;
@@ -143,6 +144,10 @@ public:
 			return !(*this == lhs);
 		}
 
+		constexpr index_t get_index() {
+			return idx - 1;
+		}
+
 		template<typename Stream>
 		friend constexpr Stream &operator<<(Stream &lhs, const ptr_t &rhs) {
 			return lhs << &*rhs;
@@ -158,6 +163,10 @@ public:
 
 	constexpr ptr_t at(index_t idx) const {
 		return {idx};
+	}
+
+	constexpr index_t index_of(ptr_t ptr) const {
+		return ptr.get_index();
 	}
 
 	constexpr ptr_t begin() const {
