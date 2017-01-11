@@ -16,15 +16,15 @@
 namespace {
 	/// a node in the
 	/// \tparam StorageDataPolicy
-	template<typename data_t, typename ptr_t>
+	template<template<typename> class data_t, typename ptr_t>
 	union freelist_stack_node_impl {
 	public:
-		data_t data;
+		data_t<ptr_t> data;
 		// free stack pointers don't have to be atomic as they are
 		// never accessed by multiple threads at once
 		ptr_t next;
 
-		operator data_t &() {
+		operator data_t<ptr_t> &() {
 			return data;
 		}
 
@@ -48,9 +48,10 @@ namespace {
 	};
 }
 
-template<typename data_t>
+template<template<typename> class data_t>
 struct freelist_stack_node {
-	template<typename ptr_t> using node = freelist_stack_node_impl<data_t, ptr_t>;
+	template<typename ptr_t>
+	using node = freelist_stack_node_impl<data_t, ptr_t>;
 };
 
 /// implements the pool freelist data policy
@@ -210,5 +211,7 @@ public:
 	}
 
 };
+
+// TODO make convenience wrapper
 
 #endif // MULTITYPE_POOL_INTRUSIVE_LINKED_STACK_HPP
