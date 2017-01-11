@@ -10,7 +10,7 @@
 using namespace std::chrono;
 using namespace std::chrono_literals;
 
-constexpr int loops = 10'000'000, poolsize = 10;
+constexpr int loops = 1'000'000'000, poolsize = 10;
 
 inline void oom_exit();
 
@@ -67,9 +67,10 @@ int main() {
 	return 0;
 }*/
 
+struct foo {};
 
 using freelist_t = static_storage_array_data<
-	discard_ptr_t<int>::node, // the stored data type does not depend on the pointer
+	discard_ptr_t<foo>::node, // the stored data type does not depend on the pointer
 	poolsize>;
 freelist_t data_storage{};
 
@@ -85,7 +86,7 @@ pool_t pool_obj{};
 inline void oom_exit() {
 	std::cerr << "Out of memory!" << std::endl;
 	for (int i = 0; i < data_storage.max_elems; ++i) {
-		std::cout << data_storage[i] << std::endl;
+//		std::cout << data_storage[i] << std::endl;
 	}
 	std::exit(1);
 }
