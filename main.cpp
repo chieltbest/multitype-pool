@@ -67,20 +67,21 @@ int main() {
 	return 0;
 }*/
 
+template<typename ptr_t>
 struct foo {};
 
 using freelist_t = static_storage_array_data<
-	discard_ptr_t<foo>::node, // the stored data type does not depend on the pointer
+	foo,
 	poolsize>;
 freelist_t data_storage{};
 
 using pool_t = pool<
 	freelist_data_store<
-		freelist_bitmap<
+		atomic_freelist_bitmap<
 			static_storage<
 				freelist_t,
-				data_storage>>>,
-	oom_exit>;
+				data_storage>>>
+	/*oom_exit*/>;
 pool_t pool_obj{};
 
 inline void oom_exit() {
@@ -92,7 +93,7 @@ inline void oom_exit() {
 }
 
 int main() {
-	decltype(pool_obj.get_free()) free;
+	decltype(pool_obj.get_free()) free = poolsize;
 	do {
 		auto start_time = system_clock::now();
 
@@ -104,8 +105,8 @@ int main() {
 
 		auto total_time = std::chrono::system_clock::now() - start_time;
 
-		free = pool_obj.get_free();
-		std::cout << free
+//		free = pool_obj.get_free();
+		std::cout /*<< free*/
 		          << " (took " << duration_cast<milliseconds>(total_time).count() << "ms)"
 		          << std::endl;
 	} while (free == poolsize);

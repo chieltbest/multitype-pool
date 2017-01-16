@@ -63,9 +63,9 @@ public:
 		: freelist{} {
 	}
 
-	template<typename T>
+	template<typename T, bool HandleOutOfMemory = true>
 	ptr_t<T> allocate() {
-		return freelist.pop();
+		return freelist.template pop<HandleOutOfMemory>();
 	}
 
 	template<typename T>

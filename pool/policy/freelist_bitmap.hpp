@@ -50,6 +50,81 @@ namespace {
 #endif
 }
 
+/// atomic bitmap, to be used when there could be multiple
+/// threads/interrupts accessing the pool
+template<typename StoragePolicy, template<typename> class atomic_t = std::atomic>
+class atomic_freelist_bitmap { // TODO make atomic version
+public:
+	using data_t = typename StoragePolicy::data_t;
+	using ptr_t = typename StoragePolicy::ptr_t;
+
+private:
+	StoragePolicy data;
+	/// a bitmap where each bit represents a single element
+	/// free elements are signified by a 1 bit, allocated ones by a 0
+	atomic_t<autosize::uint_sizeof<(StoragePolicy::max_elems + 7) / 8>> free; // round value up
+
+public:
+	constexpr atomic_freelist_bitmap()
+		: data{},
+		  free{(1 << StoragePolicy::max_elems) - 1} {
+		// initialize the bitmap to have all elements nessecary free, but the others zero, as to
+		// prevent bad allocations/counting
+	}
+
+	void push(ptr_t ptr) {
+		// TODO memory ordering
+		auto old_free = free.load();
+		bool result;
+		do {
+			// set the correct bit corresponding to the element
+			result = free.compare_exchange_weak(old_free, old_free | (1 << data.index_of(ptr)));
+
+			if (!result) {
+				// TODO make a better back off (policy)
+				std::this_thread::yield();
+			}
+		} while (!result);
+	}
+
+	template<bool HandleOutOfMemory = true>
+	ptr_t pop() {
+		auto old_free = free.load();
+		bool result;
+		decltype(get_free_pos(old_free)) pos;
+		do {
+			if (HandleOutOfMemory && free == 0) {
+				return nullptr;
+			}
+
+			pos = get_free_pos(old_free);
+
+			result = free.compare_exchange_weak(old_free, old_free ^ 1 << pos);
+			if (!result) {
+				// TODO make a better back off (policy)
+				std::this_thread::yield();
+			}
+		} while (!result);
+		return data.at(pos);
+	}
+
+	auto get_free() {
+#if __GNUC__
+		return __builtin_popcount(free);
+#else
+		#if __has_builtin(__builtin_popcount)
+		return __builtin_popcount(free);
+#else
+		int count = 0, tmp = free;
+		for (; tmp != 0; tmp &= tmp - 1)
+			count++;
+		return count;
+#endif
+#endif
+	}
+
+};
+
 /// non-atomic bitmap, to be used when it is sure that there is
 /// only ever one thread accessing the pool object
 template<typename StoragePolicy>
@@ -76,13 +151,16 @@ public:
 		free |= (1 << data.index_of(ptr)); // set the correct bit corresponding to the element
 	}
 
+	template<bool HandleOutOfMemory = true>
 	ptr_t pop() {
-		if (free == 0) {
+		if (HandleOutOfMemory && free == 0) {
 			return nullptr;
 		}
+
 		auto pos = get_free_pos(free);
 		ptr_t ptr = data.at(pos);
-		// TODO handle out of memory?
+
+		// clear the free bit
 		free ^= 1 << pos;
 		return ptr;
 	}

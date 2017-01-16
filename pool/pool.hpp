@@ -8,7 +8,12 @@
 #include <memory>
 #include "../autosize/autosize.hpp"
 
-inline void null_func() {}
+/// tag function that causes undefined behaviour to happen in an out of memory situation
+/// this is the default for all allocators because of performance reasons
+inline void do_undefined_behaviour() {}
+/// tag function to be used when the function should return nullptr
+/// in an out of memory situation
+inline void return_null() {}
 
 /// used if the stored data type does not depend on the type of the pointer
 template<typename T>
@@ -19,7 +24,7 @@ struct discard_ptr_t { // TODO make a separate header
 
 /// general pool interface, handles initialization and deconstructing of elements, and out of memory errors
 template<typename DataPolicy,
-	void (*OutOfMemoryPolicy)() = null_func,
+	void (*OutOfMemoryPolicy)() = do_undefined_behaviour,
 	     typename DefaultAllocate = typename DataPolicy::default_data_t>
 class pool { // TODO: give this a better name
 	DataPolicy data;
@@ -36,7 +41,7 @@ public:
 	template<typename T = DefaultAllocate,
 	         typename ...Args>
 	ptr_t<T> allocate(Args &&... args) {
-		ptr_t<T> new_elem{data.template allocate<T>()};
+		ptr_t<T> new_elem{data.template allocate<T, OutOfMemoryPolicy != do_undefined_behaviour>()};
 		if (new_elem == nullptr) {
 			OutOfMemoryPolicy();
 		}

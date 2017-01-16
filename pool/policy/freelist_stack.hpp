@@ -110,19 +110,20 @@ public:
 			                                    std::memory_order_release,
 			                                    std::memory_order_relaxed);
 			if (!result) {
-				// TODO make a better back off
+				// TODO make a better back off (policy)
 				std::this_thread::yield();
 			}
 		} while (!result);
 	}
 
+	template<bool HandleOutOfMemory = true>
 	ptr_t pop() {
 		head_t_int_union old_head = head_t_int_union{.num = head.load(std::memory_order_acquire)};
 		bool result;
 		// if the head is not valid then just return it,
 		// as there is no sense in getting the next element
 		do {
-			if (!old_head.data.ptr) {
+			if (HandleOutOfMemory && !old_head.data.ptr) {
 				break;
 			}
 
@@ -135,7 +136,7 @@ public:
 			                                    std::memory_order_acquire,
 			                                    std::memory_order_relaxed);
 			if (!result) {
-				// TODO make a better back off
+				// TODO make a better back off (policy)
 				std::this_thread::yield();
 			}
 		} while (!result);
@@ -185,9 +186,10 @@ public:
 		head = ptr;
 	}
 
+	template<bool HandleOutOfMemory = true>
 	ptr_t pop() {
 		ptr_t old_head = head;
-		if (old_head) {
+		if (!HandleOutOfMemory || old_head) {
 			head = std::move(old_head->next);
 		}
 		return old_head;
