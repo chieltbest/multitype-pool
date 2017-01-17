@@ -5,7 +5,7 @@
 #ifndef MULTITYPE_POOL_STATIC_DATA_HPP
 #define MULTITYPE_POOL_STATIC_DATA_HPP
 
-template<typename FreelistPolicy>
+template <typename FreelistPolicy>
 class freelist_data_store {
 	FreelistPolicy freelist;
 
@@ -14,12 +14,12 @@ public:
 
 	/// wrapper class for converting the raw data/freelist
 	/// stack pointer into the requested data type
-	template<typename T>
+	template <typename T>
 	class ptr_t : public FreelistPolicy::ptr_t {
 	public:
-		template<typename... Args>
+		template <typename... Args>
 		constexpr ptr_t(Args &&... args)
-			: FreelistPolicy::ptr_t{args...} {
+		    : FreelistPolicy::ptr_t{args...} {
 		}
 
 		constexpr T &operator*() {
@@ -35,12 +35,12 @@ public:
 			return FreelistPolicy::ptr_t::operator++();
 		}
 
-		template<typename int_t>
+		template <typename int_t>
 		constexpr ptr_t operator+(int_t add) {
 			return FreelistPolicy::ptr_t::operator+(add);
 		}
 
-		template<typename int_t>
+		template <typename int_t>
 		constexpr ptr_t operator-(int_t sub) {
 			return FreelistPolicy::ptr_t::operator-(sub);
 		}
@@ -53,22 +53,22 @@ public:
 			return FreelistPolicy::ptr_t::operator!=(lhs);
 		}
 
-		template<typename Stream>
+		template <typename Stream>
 		friend constexpr Stream &operator<<(Stream &lhs, const ptr_t &rhs) {
 			return lhs << static_cast<const typename FreelistPolicy::ptr_t &>(rhs);
 		}
 	};
 
 	constexpr freelist_data_store()
-		: freelist{} {
+	    : freelist{} {
 	}
 
-	template<typename T, bool HandleOutOfMemory = true>
+	template <typename T, bool HandleOutOfMemory = true>
 	ptr_t<T> allocate() {
 		return freelist.template pop<HandleOutOfMemory>();
 	}
 
-	template<typename T>
+	template <typename T>
 	void free(ptr_t<T> ptr) {
 		freelist.push(ptr);
 	}
@@ -76,7 +76,6 @@ public:
 	auto get_free() {
 		return freelist.get_free();
 	}
-
 };
 
 #endif // MULTITYPE_POOL_STATIC_DATA_HPP

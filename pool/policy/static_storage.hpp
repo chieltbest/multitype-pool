@@ -6,29 +6,28 @@
 #define MULTITYPE_POOL_STATIC_STORAGE_HPP
 
 #include <functional>
+
 #include "../../autosize/autosize.hpp"
 
 namespace {
 
-	struct base {
-	};
-	struct derived : public base {
-	};
+	struct base {};
+	struct derived : public base {};
 
-	template<typename container, typename data_t, unsigned MAX>
+	template <typename container, typename data_t, unsigned MAX>
 	struct call_init {
 		constexpr call_init(container &data) {
 			check<data_t>(data, derived{});
 		}
 
 		/// sfinae tester
-		template<typename T>
-		constexpr auto check(container& data, derived)
-		-> decltype(&T::template init<MAX, container>, void()) {
+		template <typename T>
+		constexpr auto check(container &data, derived)
+		        -> decltype(&T::template init<MAX, container>, void()) {
 			data_t::template init<MAX>(data);
 		}
-		template<typename T>
-		constexpr auto check(container& data, base) -> void {
+		template <typename T>
+		constexpr auto check(container &data, base) -> void {
 			// data_t has no member function init, no-op
 		}
 	};
@@ -37,7 +36,7 @@ namespace {
 
 /// provides a simple wrapper class for initializing an array as global
 /// and using it as template parameter
-template<template<typename /*ptr_t*/> class data_template, unsigned MAX>
+template <template <typename /*ptr_t*/> class data_template, unsigned MAX>
 class static_storage_array_data {
 public:
 	using index_t = autosize::auto_uint<MAX + 1>;
@@ -47,11 +46,11 @@ public:
 		index_t idx;
 
 		constexpr ptr_t(index_t idx)
-			: idx{index_t(idx + 1)} {
+		    : idx{index_t(idx + 1)} {
 		}
 
 		constexpr ptr_t(std::nullptr_t = nullptr)
-			: idx{0} {
+		    : idx{0} {
 			// make nullptr zero, because that is more efficient when checking for null
 		}
 	};
@@ -61,15 +60,14 @@ public:
 private:
 	data_t data[MAX];
 
-	template<typename static_storage_t, static_storage_t &data> friend
-	class static_storage;
-
+	template <typename static_storage_t, static_storage_t &data>
+	friend class static_storage;
 
 public:
 	constexpr static unsigned max_elems = MAX;
 
 	constexpr static_storage_array_data()
-		: data{} {
+	    : data{} {
 		call_init<static_storage_array_data, data_t, MAX>{*this};
 	}
 
@@ -80,15 +78,14 @@ public:
 	constexpr ptr_t at(index_t idx) {
 		return {idx};
 	}
-
 };
 
 /// wrapper policy for making the static storage available as a type
-template<typename static_storage_t, static_storage_t &data>
+template <typename static_storage_t, static_storage_t &data>
 class static_storage {
 public:
-	using index_t = typename static_storage_t::index_t;
-	using data_t  = typename static_storage_t::data_t;
+	using index_t                   = typename static_storage_t::index_t;
+	using data_t                    = typename static_storage_t::data_t;
 	constexpr static auto max_elems = static_storage_t::max_elems;
 
 	class ptr_t : public static_storage_t::ptr_t {
@@ -96,19 +93,18 @@ public:
 
 	public:
 		constexpr ptr_t(typename static_storage_t::ptr_t &ptr)
-			: static_storage_t::ptr_t{ptr} {
+		    : static_storage_t::ptr_t{ptr} {
 		}
 
 		constexpr ptr_t(typename static_storage_t::ptr_t &&ptr)
-			: static_storage_t::ptr_t{ptr} {
+		    : static_storage_t::ptr_t{ptr} {
 		}
 
 		constexpr ptr_t(index_t idx)
-			: static_storage_t::ptr_t{idx} {
+		    : static_storage_t::ptr_t{idx} {
 		}
 
-		constexpr ptr_t(std::nullptr_t null = nullptr) noexcept
-			: static_storage_t::ptr_t{null} {
+		constexpr ptr_t(std::nullptr_t null = nullptr) noexcept : static_storage_t::ptr_t{null} {
 		}
 
 		constexpr explicit operator bool() {
@@ -148,17 +144,16 @@ public:
 			return idx - 1;
 		}
 
-		template<typename Stream>
+		template <typename Stream>
 		friend constexpr Stream &operator<<(Stream &lhs, const ptr_t &rhs) {
 			return lhs << &*rhs;
 		}
 
 		struct hash {
-			auto operator()(const ptr_t& ptr) const {
+			auto operator()(const ptr_t &ptr) const {
 				return ptr.idx;
 			}
 		};
-
 	};
 
 	constexpr ptr_t at(index_t idx) const {
@@ -176,7 +171,6 @@ public:
 	constexpr ptr_t end() const {
 		return {static_storage_t::max_elems};
 	}
-
 };
 
 #endif // MULTITYPE_POOL_STATIC_STORAGE_HPP
