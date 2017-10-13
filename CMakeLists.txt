@@ -4,9 +4,15 @@ project(multitype_pool)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpadded -fno-exceptions")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpadded -fno-exceptions -fsanitize=undefined")
 # -fsanitize=undefined
 
-set(SOURCE_FILES main.cpp)
-add_executable(multitype_pool ${SOURCE_FILES})
-target_link_libraries(multitype_pool pthread atomic)
+add_subdirectory(mpl)
+
+add_executable(multitype_pool main.cpp)
+target_link_libraries(multitype_pool pthread)
+
+add_executable(example example.cpp)
+target_link_libraries(example pthread)
+
+add_executable(multitype_main multitype_main.cpp)

@@ -55,7 +55,8 @@ struct freelist_stack_node {
 	using node = freelist_stack_node_impl<data_t, ptr_t>;
 };
 
-/// implements the pool freelist data policy
+/// Stack-based atomic freelist implementation.
+/// Uses the tagged pointer system to mitigate the ABA problem.
 /// \tparam StoragePolicy the storage class
 /// \tparam Atomic the type of atomic that the stack should use
 /// \tparam Backoff the backoff policy to be used when the atomic fails
@@ -64,13 +65,11 @@ struct freelist_stack_node {
 ///                 operator() called for every failed attempt
 /// \tparam AllocCounter the type of the counter int that the atomic head should incorporate.
 ///                      the counter should be at least 16 bits, as with less
-///                      bits the chance of
-///                      an aba occurring will increase.
+///                      bits the chance of an aba occurring will increase. the counter type must be unsigned,
+///                      as overflow is only defined for unsigned types.
 template <typename StoragePolicy, template <typename> class Atomic = std::atomic,
           typename Backoff      = backoff_exponential<1024, 16384>, // TODO test out some values
           typename AllocCounter = uint32_t>
-// the counter type must be unsigned, as
-// overflow is only defined for unsigned types
 class atomic_freelist_stack {
 public:
 	using data_t = decltype(StoragePolicy::data_t::data);

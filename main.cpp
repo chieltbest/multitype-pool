@@ -100,7 +100,7 @@ int main() {
 		for (int i = 0; i < loops; ++i) {
 			auto ptr = pool_obj.allocate();
 //			std::cout << ptr << " " << *ptr << std::endl;
-			pool_obj.free(ptr);
+			pool_obj.deallocate(ptr);
 		}
 
 		auto total_time = std::chrono::system_clock::now() - start_time;

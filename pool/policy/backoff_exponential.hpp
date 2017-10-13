@@ -5,6 +5,8 @@
 #ifndef MULTITYPE_POOL_BACKOFF_EXPONENTIAL_HPP
 #define MULTITYPE_POOL_BACKOFF_EXPONENTIAL_HPP
 
+#include <thread>
+
 template <unsigned MinCycles, unsigned MaxCycles>
 class backoff_exponential {
 	int cur = MinCycles;
