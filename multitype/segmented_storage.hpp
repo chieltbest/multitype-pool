@@ -9,99 +9,107 @@
 
 #include <cxxabi.h>
 
+#include "allocator.hpp"
 #include "bitmap_alloc.hpp"
-#include "../pool/policy/dynamic_storage.hpp"
+#include "identity_alloc.hpp"
 
-namespace detail {
-	template <typename T>
-	struct type_name {
-		operator std::string() const {
-			const char *name{
-			        __cxxabiv1::__cxa_demangle(typeid(T).name(), nullptr, nullptr, nullptr)};
-			std::string res{name}; // copy from name into string
-			delete name;
-			return res;
-		}
-	};
-}
-// end debug functions
-
-template <typename T, unsigned N>
-class seg_alloc_segment {
-public:
+template <unsigned N, typename T>
+struct seg_alloc_segment {
 	using data_t = T;
 
-	seg_alloc_segment<T, N> *next_segment, *prev_segment;
-	bitmap_alloc<T, N> alloc{};
+	// pointers are always pointer-aligned, so put those first
+	seg_alloc_segment<N, T> *next_segment, *prev_segment;
+	bitmap_alloc<N, identity_allocator<T>> alloc{};
 };
-template<typename SectionType>
+
+template <unsigned N, typename T>
 struct segmented_allocator {
-	template<typename AllocType>
-	class type {
+
+	using data_t = seg_alloc_segment<N, typename T::data_t>;
+
+	template <typename AllocType, bool check_oom, bool check_free_null>
+	class type : public T::template type<type<AllocType, check_oom, check_free_null>, check_oom,
+	                                     check_free_null> {
+		using base_t = typename T::template type<type<AllocType, check_oom, check_free_null>,
+		                                         check_oom, check_free_null>;
+		using t_data_t = typename T::data_t;
+
 		AllocType &alloc;
-		using section_t = SectionType;
-		section_t *front{nullptr};
+		data_t *front{nullptr};
 
 	public:
-		using data_t = typename SectionType::data_t;
-
 		constexpr type(AllocType &alloc)
-			: alloc{alloc} {
+		    : base_t{*this}
+		    , alloc{alloc} {
 		}
 
 		/// free has to first find the corresponding allocator to free the data from, end then free
 		/// the data from that allocator, and possibly free the segment from the underlying segment allocator
 		/// finding the allocator has to be done by polling the address of the segment from the
 		/// segment allocator, which might be a recursive function
-		constexpr void free(data_t *ptr) {
-			section_t &section = alloc.lookup_type((char *) ptr);
+		constexpr void free(t_data_t *ptr) {
+			if (check_free_null && !ptr) {
+				return;
+			}
+
+			data_t &section  = alloc.lookup_type((const char *) ptr);
 			auto &sect_alloc = section.alloc;
 			//if the section is completely full it has to be re-added to the available list
 			bool was_full = sect_alloc.full();
 			// free the pointer from the allocator in the section
 			sect_alloc.free(ptr);
 			if (was_full) {
-				std::cout << std::string(detail::type_name<section_t>{}) << " readd" << std::endl;
+				std::cout << std::string(detail::type_name<data_t>{}) << " readd" << std::endl;
 				if (!sect_alloc.empty()) {
 					section.next_segment = front;
-					front = &section;
+					front                = &section;
 				}
 			} else if (sect_alloc.empty()) {
-				std::cout << std::string(detail::type_name<section_t>{}) << " free" << std::endl;
+				std::cout << std::string(detail::type_name<data_t>{}) << " free" << std::endl;
 				// remove the section from the free section list
-				if (section.next_segment) {
-					section.next_segment->prev_segment = section.prev_segment;
-				}
-				if (section.prev_segment) {
+				if (front == &section) {
+					front = section.next_segment;
+					if (front) {
+						front->prev_segment = nullptr;
+					}
+				} else {
+					// if the section is not front then there must be a previous section
 					section.prev_segment->next_segment = section.next_segment;
+					if (section.next_segment) {
+						section.next_segment->prev_segment = section.prev_segment;
+					}
 				}
 				// free the section in the upper allocator
 				alloc.free(&section);
 			}
 		}
+		using base_t::free;
 
-		template<typename T, typename... Args>
-		constexpr std::enable_if_t<std::is_same<T, data_t>::value, data_t>::type *allocate(
-			Args &&... args) {
+		template <typename... Args>
+		constexpr t_data_t *allocate(tag<t_data_t>, Args &&... args) {
+			std::cout << std::string(detail::type_name<t_data_t>{}) << " alloc >" << std::endl;
 			if (!front) {
-				std::cout << std::string(detail::type_name<section_t>{}) << " alloc" << std::endl;
-				front = alloc.allocate<section_t>();
+				front = alloc.template allocate(tag<data_t>{});
+				if (check_oom && !front) {
+					return nullptr;
+				}
 			}
-			auto ptr = front->alloc.allocate(std::forward<Args>(args)...);
+			auto ptr = front->alloc.allocate(tag<t_data_t>{}, std::forward<Args>(args)...);
 			// if the the segment is filled by this allocation
 			if (front->alloc.full()) {
-				std::cout << std::string(detail::type_name<section_t>{}) << " overflow"
-				          << std::endl;
+				std::cout << std::string(detail::type_name<data_t>{}) << " overflow" << std::endl;
 				// remove the segment from the available list
 				front = front->next_segment;
 				if (front) {
 					front->prev_segment = nullptr;
 				}
 			}
+			std::cout << std::string(detail::type_name<t_data_t>{}) << " alloc <" << std::endl;
 			return ptr;
 		}
+		using base_t::allocate;
 
-		data_t &lookup_type(const char *ptr) {
+		t_data_t &lookup_type(const char *ptr) const {
 			// use the lookup in the allocator of the segment
 			return alloc.lookup_type(ptr).alloc.lookup_type(ptr);
 		}

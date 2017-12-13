@@ -8,37 +8,58 @@
 #include "../pool/policy/dynamic_storage.hpp"
 
 /// bitmap allocator compatible with the segmented storage allocator
-template<typename T, std::size_t N>
-class bitmap_alloc {
-	T data[N];
+///
+/// \tparam N the number of elements to keep reserved
+/// \tparam T the lower allocator to provide allocations to
+/// \tparam CheckOom check for out of memory situations
+/// \tparam CheckFreeNull check for calling free on null pointers
+template <unsigned N, typename T, bool check_oom = false, bool check_free_null = false>
+class bitmap_alloc : public T::template type<bitmap_alloc<N, T, check_oom, check_free_null>,
+                                             check_oom, check_free_null> {
+	using base_t = typename T::template type<bitmap_alloc<N, T, check_oom, check_free_null>,
+	                                         check_oom, check_free_null>;
+	using data_t = typename T::data_t;
+
+	data_t data[N];
 	/// a bitmap where each bit represents a single element
 	/// free elements are signified by a 1 bit, allocated ones by a 0
 	autosize::uint_sizeof<(N + 7) / 8> free_bits = (1 << N) - 1; // round value up
 
 public:
-	using data_t = T;
-	using ptr_t = T*;
-
-	T& lookup_type(const char* ptr) {
-		std::ptrdiff_t diff = ptr - ((const char*) &data[0]);
-		// truncate to the index
-		std::ptrdiff_t idx = diff / sizeof(T);
-		return data[idx];
+	constexpr bitmap_alloc()
+	    : base_t{*this} {
 	}
 
-	void free(const T *ptr) {
-		free_bits |= (1 << (ptr - &data[0])); // set the correct bit corresponding to the element
+	void free(data_t *ptr) {
+		if (!check_free_null || ptr) {
+			free_bits |=
+			        (1 << (ptr - &data[0])); // set the correct bit corresponding to the element
+		}
 	}
+	using base_t::free;
 
-	template<typename ...Args>
-	ptr_t allocate(Args&&...args) {
+	template <typename... Args>
+	data_t *allocate(tag<data_t>, Args &&... args) {
+		std::cout << std::string(detail::type_name<data_t>{}) << " balloc =" << std::endl;
+		if (check_oom && full()) {
+			return nullptr;
+		}
+
 		auto pos = get_free_pos(free_bits);
 
-		ptr_t ptr = new (&data[pos]) T(args...);
+		data_t *ptr = new (&data[pos]) data_t(args...);
 
 		// clear the free bit
 		free_bits ^= 1 << pos;
 		return ptr;
+	}
+	using base_t::allocate;
+
+	data_t &lookup_type(const char *ptr) {
+		std::ptrdiff_t diff = ptr - ((const char *)&data[0]);
+		// truncate to the index
+		std::ptrdiff_t idx = diff / sizeof(data_t);
+		return data[idx];
 	}
 
 	bool full() {
@@ -51,12 +72,12 @@ public:
 
 private:
 	/// find the least significant bit set in a number, being unspecified if the number is 0
-	template<typename Num>
+	template <typename Num>
 	constexpr static int get_free_pos(Num num) {
 #if __GNUC__
 		return __builtin_ctzll(num);
 #else
-		// use the biggest type available for the ctz instruction
+// use the biggest type available for the ctz instruction
 #if __has_builtin(__builtin_ctzll)
 		return __builtin_ctzll(num);
 #else
@@ -67,8 +88,8 @@ private:
 		return __builtin_ctz(num);
 #else
 		constexpr int MultiplyDeBruijnBitPosition[] = {0,  1,  28, 2,  29, 14, 24, 3,  30, 22, 20,
-													   15, 25, 17, 4,  8,  31, 27, 13, 23, 21, 19,
-													   16, 7,  26, 12, 18, 6,  11, 5,  10, 9};
+		                                               15, 25, 17, 4,  8,  31, 27, 13, 23, 21, 19,
+		                                               16, 7,  26, 12, 18, 6,  11, 5,  10, 9};
 
 		return MultiplyDeBruijnBitPosition[((uint32_t)((num & -num) * 0x077CB531U)) >> 27];
 #endif
@@ -91,5 +112,4 @@ private:
 #endif
 #endif
 	}
-
 };
