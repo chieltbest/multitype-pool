@@ -90,7 +90,7 @@ namespace autosize {
 		};
 		template<>
 		struct int_sizeof_impl<0> {
-			using r = char[0]; // special zero-sized struct
+			using r = int8_t; // smallest size int possible
 		};
 		template<>
 		struct int_sizeof_impl<1> {
@@ -117,7 +117,7 @@ namespace autosize {
 		};
 		template<>
 		struct uint_sizeof_impl<0> {
-			using r = char[0]; // special zero-sized struct
+			using r = uint8_t; // smallest size unsigned possible
 		};
 		template<>
 		struct uint_sizeof_impl<1> {

@@ -9,9 +9,11 @@ struct identity_allocator {
 
 	using data_t = T;
 
+	constexpr static float usage = sizeof(T);
+
 	/// The allocator type that provides the T allocate function
 	///
-	/// \tparam Alloc the allocator type that can allocate data_t obejcts
+	/// \tparam Alloc the allocator type that can allocate data_t objects
 	/// All storage in this storage is allocator-wide accessible
 	template <typename Alloc, bool check_oom, bool check_free_null>
 	struct type {

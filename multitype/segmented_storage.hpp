@@ -10,7 +10,7 @@
 #include <cxxabi.h>
 
 #include "allocator.hpp"
-#include "bitmap_alloc.hpp"
+#include "root/bitmap_alloc.hpp"
 #include "identity_alloc.hpp"
 
 template <unsigned N, typename T>
@@ -19,28 +19,28 @@ struct seg_alloc_segment {
 
 	// pointers are always pointer-aligned, so put those first
 	seg_alloc_segment<N, T> *next_segment, *prev_segment;
-	bitmap_alloc<N, identity_allocator<T>> alloc{};
+	bitmap_alloc<N, identity_allocator<T>> alloc;
 };
 
-template <unsigned N, typename T>
+template <typename N, typename T>
 struct segmented_allocator {
 
-	using data_t = seg_alloc_segment<N, typename T::data_t>;
+	using data_t = seg_alloc_segment<N::value, typename T::data_t>;
 
-	template <typename AllocType, bool check_oom, bool check_free_null>
-	class type : public T::template type<type<AllocType, check_oom, check_free_null>, check_oom,
+	constexpr static float usage = T::usage * N::value;
+
+	template <typename Alloc, bool check_oom, bool check_free_null>
+	class type : public T::template type<type<Alloc, check_oom, check_free_null>, check_oom,
 	                                     check_free_null> {
-		using base_t = typename T::template type<type<AllocType, check_oom, check_free_null>,
-		                                         check_oom, check_free_null>;
+		using base_t = typename T::template type<type<Alloc, check_oom, check_free_null>, check_oom,
+		                                         check_free_null>;
 		using t_data_t = typename T::data_t;
 
-		AllocType &alloc;
 		data_t *front{nullptr};
 
 	public:
-		constexpr type(AllocType &alloc)
-		    : base_t{*this}
-		    , alloc{alloc} {
+		constexpr type()
+		    : base_t{} {
 		}
 
 		/// free has to first find the corresponding allocator to free the data from, end then free
@@ -52,7 +52,7 @@ struct segmented_allocator {
 				return;
 			}
 
-			data_t &section  = alloc.lookup_type((const char *) ptr);
+			data_t &section  = ((Alloc *)this)->lookup_type((const char *)ptr);
 			auto &sect_alloc = section.alloc;
 			//if the section is completely full it has to be re-added to the available list
 			bool was_full = sect_alloc.full();
@@ -80,7 +80,7 @@ struct segmented_allocator {
 					}
 				}
 				// free the section in the upper allocator
-				alloc.free(&section);
+				((Alloc *)this)->free(&section);
 			}
 		}
 		using base_t::free;
@@ -89,7 +89,7 @@ struct segmented_allocator {
 		constexpr t_data_t *allocate(tag<t_data_t>, Args &&... args) {
 			std::cout << std::string(detail::type_name<t_data_t>{}) << " alloc >" << std::endl;
 			if (!front) {
-				front = alloc.template allocate(tag<data_t>{});
+				front = ((Alloc *)this)->template allocate(tag<data_t>{});
 				if (check_oom && !front) {
 					return nullptr;
 				}
@@ -111,7 +111,7 @@ struct segmented_allocator {
 
 		t_data_t &lookup_type(const char *ptr) const {
 			// use the lookup in the allocator of the segment
-			return alloc.lookup_type(ptr).alloc.lookup_type(ptr);
+			return ((Alloc *)this)->lookup_type(ptr).alloc.lookup_type(ptr);
 		}
 	};
 };

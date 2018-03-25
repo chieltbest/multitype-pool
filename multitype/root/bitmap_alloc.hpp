@@ -4,8 +4,8 @@
 //          http://www.boost.org/LICENSE_1_0.txt)
 #pragma once
 
-#include "../pool/policy/freelist_bitmap.hpp"
-#include "../pool/policy/dynamic_storage.hpp"
+#include "../../pool/policy/freelist_bitmap.hpp"
+#include "../../pool/policy/dynamic_storage.hpp"
 
 /// bitmap allocator compatible with the segmented storage allocator
 ///
@@ -20,14 +20,22 @@ class bitmap_alloc : public T::template type<bitmap_alloc<N, T, check_oom, check
 	                                         check_oom, check_free_null>;
 	using data_t = typename T::data_t;
 
+	// data has to be left undefined because it could happen that the default constructor is
+	// undefined
 	data_t data[N];
+
 	/// a bitmap where each bit represents a single element
 	/// free elements are signified by a 1 bit, allocated ones by a 0
-	autosize::uint_sizeof<(N + 7) / 8> free_bits = (1 << N) - 1; // round value up
+	using free_bits_t = autosize::uint_sizeof<(N + 7) / 8>; // round value up
+	constexpr static free_bits_t empty_bitset = (~0ull) >>
+	                                            (sizeof(free_bits_t) * 8 - N);
+	free_bits_t free_bits = empty_bitset;
 
 public:
+	constexpr static float usage = T::usage * N;
+
 	constexpr bitmap_alloc()
-	    : base_t{*this} {
+	    : base_t{} {
 	}
 
 	void free(data_t *ptr) {
@@ -47,7 +55,7 @@ public:
 
 		auto pos = get_free_pos(free_bits);
 
-		data_t *ptr = new (&data[pos]) data_t(args...);
+		auto *ptr = new (&data[pos]) data_t(std::forward<Args>(args)...);
 
 		// clear the free bit
 		free_bits ^= 1 << pos;
@@ -67,7 +75,7 @@ public:
 	}
 
 	bool empty() {
-		return free_bits == (1 << N) - 1;
+		return free_bits == empty_bitset;
 	}
 
 private:

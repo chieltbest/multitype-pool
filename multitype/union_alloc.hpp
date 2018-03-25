@@ -14,6 +14,13 @@ namespace detail {
 	union var_union<T, Ts...> {
 		T car;
 		var_union<Ts...> cdr;
+
+		var_union() = default;
+
+		template <typename... Args>
+		constexpr explicit var_union(tag<T> &&, Args &&... args)
+		    : car{args...} {
+		}
 	};
 
 	template <typename Get, typename... Ts>
@@ -46,17 +53,14 @@ namespace detail {
 		        type_impl<Alloc, data_t, check_oom, check_null_free, SubAlloc, Types...>, check_oom,
 		        check_null_free>;
 
-		Alloc &alloc;
-
 	public:
-		constexpr type_impl(Alloc &alloc)
-		    : next_base_t{alloc}
-		    , base_t{*this}
-		    , alloc{alloc} {
+		constexpr type_impl()
+		    : next_base_t{}
+		    , base_t{} {
 		}
 
 		constexpr void free(typename SubAlloc::data_t *ptr) {
-			alloc.free(&alloc.lookup_type((const char *)ptr));
+			((Alloc *)this)->free(&((Alloc *)this)->lookup_type((const char *)ptr));
 		}
 		using next_base_t::free;
 		using base_t::free;
@@ -66,8 +70,11 @@ namespace detail {
 		                                              Args &&... args) {
 			std::cout << std::string(detail::type_name<typename SubAlloc::data_t>{}) << " ualloc >"
 			          << std::endl;
-			typename SubAlloc::data_t *ptr = &detail::get_union<typename SubAlloc::data_t>(
-			        *alloc.template allocate(tag<data_t>{}));
+			data_t *uptr = ((Alloc *)this)->template allocate(tag<data_t>{});
+			if (check_oom && !uptr) {
+				return nullptr;
+			}
+			typename SubAlloc::data_t *ptr = &detail::get_union<typename SubAlloc::data_t>(*uptr);
 			new (ptr) typename SubAlloc::data_t(args...);
 			std::cout << std::string(detail::type_name<typename SubAlloc::data_t>{}) << " ualloc <"
 			          << std::endl;
@@ -77,9 +84,18 @@ namespace detail {
 		using base_t::allocate;
 
 		constexpr typename SubAlloc::data_t &lookup_type(const char *ptr) {
-			return detail::get_union<typename SubAlloc::data_t>(alloc.lookup_type(ptr));
+			return detail::get_union<typename SubAlloc::data_t>(((Alloc *)this)->lookup_type(ptr));
 		}
 	};
+
+	constexpr float total(float v) {
+		return v;
+	}
+
+	template <typename... Ts>
+	constexpr float total(float v, Ts... vs) {
+		return v + total(vs...);
+	}
 }
 
 template <typename... Types>
@@ -87,11 +103,13 @@ struct union_alloc {
 
 	using data_t = detail::var_union<typename Types::data_t...>;
 
+	constexpr static float usage = detail::total(Types::usage...);
+
 	// pass self into lower allocators
 	template <typename Alloc, bool check_oom, bool check_null_free>
 	struct type : public detail::type_impl<Alloc, data_t, check_oom, check_null_free, Types...> {
-		constexpr type(Alloc &alloc)
-		    : detail::type_impl<Alloc, data_t, check_oom, check_null_free, Types...>{alloc} {
+		constexpr type()
+		    : detail::type_impl<Alloc, data_t, check_oom, check_null_free, Types...>{} {
 		}
 	};
 };
